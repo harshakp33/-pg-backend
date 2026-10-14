@@ -1,0 +1,1868 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model audit_logs {
+  id             String         @id @db.Uuid
+  organizationId String?        @db.Uuid
+  userId         String?        @db.Uuid
+  action         String         @db.VarChar(100)
+  entityType     String         @db.VarChar(100)
+  entityId       String?        @db.Uuid
+  oldValues      String?
+  newValues      String?
+  ipAddress      String?        @db.VarChar(45)
+  userAgent      String?
+  createdAt      DateTime       @default(now()) @db.Timestamp(6)
+  organizations  organizations? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users          users?         @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model beds {
+  id                   String                 @id @db.Uuid
+  organizationId       String                 @db.Uuid
+  propertyId           String                 @db.Uuid
+  floorId              String                 @db.Uuid
+  roomId               String                 @db.Uuid
+  bedNumber            String                 @db.VarChar(50)
+  status               BedStatus              @default(AVAILABLE)
+  monthlyRent          Decimal                @db.Decimal(10, 2)
+  deposit              Decimal                @db.Decimal(10, 2)
+  notes                String?
+  deletedAt            DateTime?              @db.Timestamp(6)
+  createdAt            DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt            DateTime               @db.Timestamp(6)
+  floors               floors                 @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  organizations        organizations          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties           properties             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rooms                rooms                  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookings             bookings[]
+  maintenance_requests maintenance_requests[]
+  move_ins             move_ins[]
+  move_outs            move_outs[]
+  resident_stays       resident_stays[]
+  residents            residents[]
+
+  @@unique([roomId, bedNumber])
+  @@index([deletedAt])
+  @@index([floorId])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([roomId])
+  @@index([status])
+}
+
+model bookings {
+  id             String        @id @db.Uuid
+  organizationId String        @db.Uuid
+  propertyId     String        @db.Uuid
+  roomId         String        @db.Uuid
+  bedId          String        @db.Uuid
+  enquiryId      String?       @db.Uuid
+  residentId     String?       @db.Uuid
+  bookingAmount  Decimal       @db.Decimal(10, 2)
+  bookingDate    DateTime      @default(now()) @db.Timestamp(6)
+  expectedMoveIn DateTime      @db.Date
+  receiptNumber  String        @db.VarChar(50)
+  paymentMode    String        @default("UPI") @db.VarChar(50)
+  status         BookingStatus @default(CONFIRMED)
+  notes          String?
+  createdAt      DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime      @db.Timestamp(6)
+  beds           beds          @relation(fields: [bedId], references: [id], onDelete: Cascade)
+  enquiries      enquiries?    @relation(fields: [enquiryId], references: [id])
+  organizations  organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties     properties    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents      residents?    @relation(fields: [residentId], references: [id])
+  rooms          rooms         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([bedId])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+model complaint_history {
+  id          String           @id @db.Uuid
+  complaintId String           @db.Uuid
+  actorUserId String?          @db.Uuid
+  oldStatus   ComplaintStatus?
+  newStatus   ComplaintStatus
+  notes       String?
+  createdAt   DateTime         @default(now()) @db.Timestamp(6)
+  complaints  complaints       @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+}
+
+model complaints {
+  id                 String              @id @db.Uuid
+  organizationId     String              @db.Uuid
+  propertyId         String              @db.Uuid
+  residentId         String              @db.Uuid
+  ticketNumber       String              @unique @db.VarChar(50)
+  category           ComplaintCategory   @default(OTHER)
+  subject            String              @db.VarChar(200)
+  description        String
+  priority           MaintenancePriority @default(MEDIUM)
+  status             ComplaintStatus     @default(SUBMITTED)
+  assignedToId       String?             @db.Uuid
+  investigationNotes String?
+  resolutionNotes    String?
+  resolvedAt         DateTime?           @db.Timestamp(6)
+  closedAt           DateTime?           @db.Timestamp(6)
+  createdAt          DateTime            @default(now()) @db.Timestamp(6)
+  updatedAt          DateTime            @db.Timestamp(6)
+  complaint_history  complaint_history[]
+  users              users?              @relation(fields: [assignedToId], references: [id])
+  organizations      organizations       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties         properties          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents          residents           @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([assignedToId])
+  @@index([category])
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([priority])
+  @@index([propertyId])
+  @@index([residentId])
+  @@index([status])
+}
+
+model daily_menu_items {
+  id               String       @id @db.Uuid
+  weeklyMenuId     String       @db.Uuid
+  dayOfWeek        DayOfWeek
+  mealType         MealType
+  title            String       @db.VarChar(150)
+  itemsDescription String
+  startTime        String?      @default("07:30") @db.VarChar(10)
+  endTime          String?      @default("09:30") @db.VarChar(10)
+  isSpecialMeal    Boolean      @default(false)
+  createdAt        DateTime     @default(now()) @db.Timestamp(6)
+  weekly_menus     weekly_menus @relation(fields: [weeklyMenuId], references: [id], onDelete: Cascade)
+
+  @@index([dayOfWeek, mealType])
+  @@index([weeklyMenuId])
+}
+
+model deposit_transactions {
+  id              String        @id @db.Uuid
+  organizationId  String        @db.Uuid
+  propertyId      String        @db.Uuid
+  residentId      String        @db.Uuid
+  transactionType DepositTxType @default(COLLECTED)
+  amount          Decimal       @db.Decimal(10, 2)
+  transactionDate DateTime      @default(now()) @db.Timestamp(6)
+  paymentMethod   PaymentMethod @default(UPI)
+  referenceNumber String?       @db.VarChar(100)
+  notes           String?
+  createdAt       DateTime      @default(now()) @db.Timestamp(6)
+  organizations   organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties      properties    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents       residents     @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([residentId])
+  @@index([transactionType])
+}
+
+model enquiries {
+  id                String        @id @db.Uuid
+  organizationId    String        @db.Uuid
+  propertyId        String?       @db.Uuid
+  name              String        @db.VarChar(150)
+  phone             String        @db.VarChar(20)
+  email             String?       @db.VarChar(255)
+  source            EnquirySource @default(WEBSITE)
+  preferredRoomType RoomType      @default(DOUBLE)
+  budget            Decimal?      @db.Decimal(10, 2)
+  expectedMoveIn    DateTime?     @db.Date
+  status            EnquiryStatus @default(NEW)
+  siteVisitDate     DateTime?     @db.Timestamp(6)
+  notes             String?
+  deletedAt         DateTime?     @db.Timestamp(6)
+  createdAt         DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime      @db.Timestamp(6)
+  bookings          bookings[]
+  organizations     organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties        properties?   @relation(fields: [propertyId], references: [id])
+
+  @@index([organizationId])
+  @@index([phone])
+  @@index([propertyId])
+  @@index([status])
+}
+
+model expenses {
+  id                String          @id @db.Uuid
+  organizationId    String          @db.Uuid
+  propertyId        String          @db.Uuid
+  category          ExpenseCategory @default(ELECTRICITY_BILL)
+  title             String          @db.VarChar(255)
+  amount            Decimal         @db.Decimal(10, 2)
+  expenseDate       DateTime        @default(now()) @db.Timestamp(6)
+  paymentMethod     PaymentMethod   @default(UPI)
+  vendorName        String?         @db.VarChar(150)
+  invoiceReceiptUrl String?
+  notes             String?
+  recordedBy        String?         @db.Uuid
+  deletedAt         DateTime?       @db.Timestamp(6)
+  createdAt         DateTime        @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime        @db.Timestamp(6)
+  organizations     organizations   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties        properties      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([deletedAt])
+  @@index([expenseDate])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model floors {
+  id             String           @id @db.Uuid
+  organizationId String           @db.Uuid
+  propertyId     String           @db.Uuid
+  floorNumber    Int
+  name           String           @db.VarChar(100)
+  description    String?
+  deletedAt      DateTime?        @db.Timestamp(6)
+  createdAt      DateTime         @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime         @db.Timestamp(6)
+  beds           beds[]
+  organizations  organizations    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties     properties       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  resident_stays resident_stays[]
+  residents      residents[]
+  rooms          rooms[]
+  staff_tasks    staff_tasks[]
+
+  @@unique([propertyId, floorNumber])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model food_expenses {
+  id               String        @id @db.Uuid
+  organizationId   String        @db.Uuid
+  propertyId       String        @db.Uuid
+  vendorId         String?       @db.Uuid
+  invoiceNumber    String?       @db.VarChar(100)
+  amount           Decimal       @db.Decimal(10, 2)
+  expenseDate      DateTime      @default(now()) @db.Timestamp(6)
+  itemsDescription String
+  paymentStatus    String        @default("PAID") @db.VarChar(50)
+  paymentMethod    PaymentMethod @default(UPI)
+  createdAt        DateTime      @default(now()) @db.Timestamp(6)
+  organizations    organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties       properties    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  food_vendors     food_vendors? @relation(fields: [vendorId], references: [id])
+
+  @@index([expenseDate])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([vendorId])
+}
+
+model food_vendors {
+  id             String             @id @db.Uuid
+  organizationId String             @db.Uuid
+  propertyId     String?            @db.Uuid
+  name           String             @db.VarChar(150)
+  category       FoodVendorCategory @default(GROCERY_WHOLESALE)
+  contactPerson  String?            @db.VarChar(100)
+  phone          String             @db.VarChar(20)
+  email          String?            @db.VarChar(255)
+  address        String?
+  gstin          String?            @db.VarChar(20)
+  paymentTerms   String?            @default("Net 15 Days") @db.VarChar(100)
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime           @db.Timestamp(6)
+  food_expenses  food_expenses[]
+  organizations  organizations      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties     properties?        @relation(fields: [propertyId], references: [id])
+
+  @@index([category])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model inventory_items {
+  id                     String                   @id @db.Uuid
+  organizationId         String                   @db.Uuid
+  propertyId             String                   @db.Uuid
+  name                   String                   @db.VarChar(200)
+  sku                    String?                  @db.VarChar(50)
+  category               InventoryCategory        @default(OTHER)
+  unit                   InventoryUnit            @default(PCS)
+  currentStock           Decimal                  @default(0.0) @db.Decimal(10, 2)
+  minimumStock           Decimal                  @default(10.0) @db.Decimal(10, 2)
+  maximumStock           Decimal                  @default(100.0) @db.Decimal(10, 2)
+  purchasePrice          Decimal                  @default(0.0) @db.Decimal(10, 2)
+  vendorId               String?                  @db.Uuid
+  status                 InventoryStatus          @default(IN_STOCK)
+  locationNote           String?                  @db.VarChar(150)
+  createdAt              DateTime                 @default(now()) @db.Timestamp(6)
+  updatedAt              DateTime                 @db.Timestamp(6)
+  organizations          organizations            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties             properties               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendors                vendors?                 @relation(fields: [vendorId], references: [id])
+  inventory_transactions inventory_transactions[]
+  purchase_record_items  purchase_record_items[]
+
+  @@index([category])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([vendorId])
+}
+
+model inventory_transactions {
+  id                String                   @id @db.Uuid
+  organizationId    String                   @db.Uuid
+  propertyId        String                   @db.Uuid
+  itemId            String                   @db.Uuid
+  type              InventoryTransactionType
+  quantity          Decimal                  @db.Decimal(10, 2)
+  previousStock     Decimal                  @db.Decimal(10, 2)
+  newStock          Decimal                  @db.Decimal(10, 2)
+  unitPrice         Decimal?                 @db.Decimal(10, 2)
+  totalAmount       Decimal?                 @db.Decimal(10, 2)
+  referenceNumber   String?                  @db.VarChar(100)
+  vendorId          String?                  @db.Uuid
+  performedByUserId String?                  @db.Uuid
+  notes             String?
+  createdAt         DateTime                 @default(now()) @db.Timestamp(6)
+  inventory_items   inventory_items          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  organizations     organizations            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users             users?                   @relation(fields: [performedByUserId], references: [id])
+  properties        properties               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendors           vendors?                 @relation(fields: [vendorId], references: [id])
+
+  @@index([createdAt])
+  @@index([itemId])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([type])
+  @@index([vendorId])
+}
+
+model invoice_items {
+  id          String     @id @db.Uuid
+  invoiceId   String     @db.Uuid
+  chargeType  ChargeType @default(BASE_RENT)
+  description String     @db.VarChar(255)
+  amount      Decimal    @db.Decimal(10, 2)
+  isDeduction Boolean    @default(false)
+  createdAt   DateTime   @default(now()) @db.Timestamp(6)
+  invoices    invoices   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model invoices {
+  id                  String                @id @db.Uuid
+  organizationId      String                @db.Uuid
+  propertyId          String                @db.Uuid
+  residentId          String                @db.Uuid
+  invoiceNumber       String                @unique @db.VarChar(50)
+  billingPeriodStart  DateTime              @db.Date
+  billingPeriodEnd    DateTime              @db.Date
+  dueDate             DateTime              @db.Date
+  baseRent            Decimal               @default(0.0) @db.Decimal(10, 2)
+  additionalCharges   Decimal               @default(0.0) @db.Decimal(10, 2)
+  lateFees            Decimal               @default(0.0) @db.Decimal(10, 2)
+  discounts           Decimal               @default(0.0) @db.Decimal(10, 2)
+  adjustments         Decimal               @default(0.0) @db.Decimal(10, 2)
+  netPayable          Decimal               @db.Decimal(10, 2)
+  paidAmount          Decimal               @default(0.0) @db.Decimal(10, 2)
+  outstandingAmount   Decimal               @db.Decimal(10, 2)
+  status              InvoiceStatus         @default(ISSUED)
+  notes               String?
+  issuedAt            DateTime              @default(now()) @db.Timestamp(6)
+  paidAt              DateTime?             @db.Timestamp(6)
+  createdAt           DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt           DateTime              @db.Timestamp(6)
+  invoice_items       invoice_items[]
+  organizations       organizations         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties          properties            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents           residents             @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  payment_allocations payment_allocations[]
+
+  @@index([dueDate])
+  @@index([invoiceNumber])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([residentId])
+  @@index([status])
+}
+
+model maintenance_history {
+  id                   String               @id @db.Uuid
+  maintenanceRequestId String               @db.Uuid
+  actorUserId          String?              @db.Uuid
+  oldStatus            MaintenanceStatus?
+  newStatus            MaintenanceStatus
+  notes                String?
+  createdAt            DateTime             @default(now()) @db.Timestamp(6)
+  maintenance_requests maintenance_requests @relation(fields: [maintenanceRequestId], references: [id], onDelete: Cascade)
+
+  @@index([maintenanceRequestId])
+}
+
+model maintenance_requests {
+  id                  String                @id @db.Uuid
+  organizationId      String                @db.Uuid
+  propertyId          String                @db.Uuid
+  roomId              String?               @db.Uuid
+  bedId               String?               @db.Uuid
+  residentId          String?               @db.Uuid
+  ticketNumber        String                @unique @db.VarChar(50)
+  title               String                @db.VarChar(200)
+  description         String
+  category            MaintenanceCategory   @default(OTHER)
+  priority            MaintenancePriority   @default(MEDIUM)
+  status              MaintenanceStatus     @default(CREATED)
+  assignedStaffId     String?               @db.Uuid
+  vendorName          String?               @db.VarChar(150)
+  estimatedCost       Decimal               @default(0.0) @db.Decimal(10, 2)
+  actualCost          Decimal               @default(0.0) @db.Decimal(10, 2)
+  images              String?
+  resolutionNotes     String?
+  slaDueAt            DateTime?             @db.Timestamp(6)
+  assignedAt          DateTime?             @db.Timestamp(6)
+  startedAt           DateTime?             @db.Timestamp(6)
+  completedAt         DateTime?             @db.Timestamp(6)
+  verifiedAt          DateTime?             @db.Timestamp(6)
+  closedAt            DateTime?             @db.Timestamp(6)
+  createdAt           DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt           DateTime              @db.Timestamp(6)
+  maintenance_history maintenance_history[]
+  users               users?                @relation(fields: [assignedStaffId], references: [id])
+  beds                beds?                 @relation(fields: [bedId], references: [id])
+  organizations       organizations         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties          properties            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents           residents?            @relation(fields: [residentId], references: [id])
+  rooms               rooms?                @relation(fields: [roomId], references: [id])
+
+  @@index([assignedStaffId])
+  @@index([bedId])
+  @@index([category])
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([priority])
+  @@index([propertyId])
+  @@index([residentId])
+  @@index([roomId])
+  @@index([status])
+}
+
+model managed_documents {
+  id               String              @id @db.Uuid
+  organizationId   String              @db.Uuid
+  propertyId       String?             @db.Uuid
+  residentId       String?             @db.Uuid
+  title            String              @db.VarChar(255)
+  category         DocumentCategory
+  documentType     String              @db.VarChar(100)
+  fileName         String              @db.VarChar(255)
+  fileKey          String              @db.VarChar(255)
+  fileUrl          String
+  fileSize         Int                 @default(0)
+  mimeType         String              @default("application/pdf") @db.VarChar(100)
+  accessLevel      DocumentAccessLevel @default(ROLE_RESTRICTED)
+  allowedRoles     String?             @db.VarChar(255)
+  uploadedByUserId String?             @db.Uuid
+  tags             String?             @db.VarChar(255)
+  notes            String?
+  createdAt        DateTime            @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime            @db.Timestamp(6)
+  organizations    organizations       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties       properties?         @relation(fields: [propertyId], references: [id])
+  residents        residents?          @relation(fields: [residentId], references: [id])
+  users            users?              @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([accessLevel])
+  @@index([category])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([residentId])
+}
+
+model meal_attendances {
+  id           String               @id @db.Uuid
+  mealRecordId String               @db.Uuid
+  residentId   String               @db.Uuid
+  status       MealAttendanceStatus @default(PRESENT)
+  markedAt     DateTime             @default(now()) @db.Timestamp(6)
+  notes        String?
+  meal_records meal_records         @relation(fields: [mealRecordId], references: [id], onDelete: Cascade)
+  residents    residents            @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@unique([mealRecordId, residentId])
+  @@index([mealRecordId])
+  @@index([residentId])
+}
+
+model meal_records {
+  id               String             @id @db.Uuid
+  organizationId   String             @db.Uuid
+  propertyId       String             @db.Uuid
+  mealDate         DateTime           @db.Date
+  mealType         MealType
+  expectedCount    Int                @default(0)
+  actualCount      Int                @default(0)
+  notes            String?
+  loggedBy         String?            @db.Uuid
+  createdAt        DateTime           @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime           @db.Timestamp(6)
+  meal_attendances meal_attendances[]
+  organizations    organizations      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties       properties         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, mealDate, mealType])
+  @@index([mealDate])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model move_ins {
+  id                    String        @id @db.Uuid
+  organizationId        String        @db.Uuid
+  residentId            String        @db.Uuid
+  propertyId            String        @db.Uuid
+  bedId                 String        @db.Uuid
+  moveInDate            DateTime      @default(now()) @db.Timestamp(6)
+  initialMeterReading   Decimal?      @db.Decimal(10, 2)
+  securityDepositAmount Decimal       @db.Decimal(10, 2)
+  depositPaid           Decimal       @db.Decimal(10, 2)
+  firstInvoiceAmount    Decimal       @db.Decimal(10, 2)
+  firstInvoicePaid      Boolean       @default(false)
+  status                MoveInStatus  @default(COMPLETED)
+  notes                 String?
+  checkedInBy           String?       @db.Uuid
+  createdAt             DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime      @db.Timestamp(6)
+  beds                  beds          @relation(fields: [bedId], references: [id], onDelete: Cascade)
+  organizations         organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties            properties    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents             residents     @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([bedId])
+  @@index([organizationId])
+  @@index([residentId])
+}
+
+model move_outs {
+  id                String        @id @db.Uuid
+  organizationId    String        @db.Uuid
+  residentId        String        @db.Uuid
+  propertyId        String        @db.Uuid
+  bedId             String?       @db.Uuid
+  noticeDate        DateTime      @db.Timestamp(6)
+  plannedMoveOut    DateTime      @db.Timestamp(6)
+  actualMoveOut     DateTime?     @db.Timestamp(6)
+  reason            String?
+  totalDepositHeld  Decimal       @db.Decimal(10, 2)
+  damageAmount      Decimal       @default(0.0) @db.Decimal(10, 2)
+  damageNotes       String?
+  pendingDuesAmount Decimal       @default(0.0) @db.Decimal(10, 2)
+  depositDeductions Decimal       @default(0.0) @db.Decimal(10, 2)
+  refundAmount      Decimal       @db.Decimal(10, 2)
+  status            MoveOutStatus @default(NOTICE_SUBMITTED)
+  settledAt         DateTime?     @db.Timestamp(6)
+  settledBy         String?       @db.Uuid
+  createdAt         DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime      @db.Timestamp(6)
+  beds              beds?         @relation(fields: [bedId], references: [id])
+  organizations     organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties        properties    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents         residents     @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([residentId])
+  @@index([status])
+}
+
+model notices {
+  id             String         @id @db.Uuid
+  organizationId String         @db.Uuid
+  propertyId     String?        @db.Uuid
+  title          String         @db.VarChar(255)
+  description    String
+  audience       NoticeAudience @default(ALL_RESIDENTS)
+  priority       NoticePriority @default(MEDIUM)
+  publishDate    DateTime       @default(now()) @db.Timestamp(6)
+  expiryDate     DateTime?      @db.Timestamp(6)
+  status         NoticeStatus   @default(PUBLISHED)
+  isPinned       Boolean        @default(false)
+  authorUserId   String?        @db.Uuid
+  createdAt      DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime       @db.Timestamp(6)
+  users          users?         @relation(fields: [authorUserId], references: [id])
+  organizations  organizations  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties     properties?    @relation(fields: [propertyId], references: [id])
+
+  @@index([audience])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([publishDate])
+  @@index([status])
+}
+
+model notification_preferences {
+  id              String           @id @db.Uuid
+  organizationId  String           @db.Uuid
+  userId          String           @db.Uuid
+  type            NotificationType
+  inAppEnabled    Boolean          @default(true)
+  emailEnabled    Boolean          @default(true)
+  smsEnabled      Boolean          @default(true)
+  whatsappEnabled Boolean          @default(true)
+  createdAt       DateTime         @default(now()) @db.Timestamp(6)
+  updatedAt       DateTime         @db.Timestamp(6)
+  organizations   organizations    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users           users            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model notifications {
+  id               String              @id @db.Uuid
+  organizationId   String              @db.Uuid
+  userId           String              @db.Uuid
+  propertyId       String?             @db.Uuid
+  type             NotificationType
+  channel          NotificationChannel @default(IN_APP)
+  title            String              @db.VarChar(255)
+  body             String
+  metadata         String?
+  status           NotificationStatus  @default(SENT)
+  deduplicationKey String?             @unique @db.VarChar(255)
+  readAt           DateTime?           @db.Timestamp(6)
+  sentAt           DateTime            @default(now()) @db.Timestamp(6)
+  createdAt        DateTime            @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime            @db.Timestamp(6)
+  organizations    organizations       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties       properties?         @relation(fields: [propertyId], references: [id])
+  users            users               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channel])
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([type])
+  @@index([userId, status])
+}
+
+model organization_members {
+  id             String        @id @db.Uuid
+  organizationId String        @db.Uuid
+  userId         String        @db.Uuid
+  roleId         String        @db.Uuid
+  isPrimaryOwner Boolean       @default(false)
+  status         MemberStatus  @default(ACTIVE)
+  joinedAt       DateTime      @default(now()) @db.Timestamp(6)
+  deletedAt      DateTime?     @db.Timestamp(6)
+  createdAt      DateTime      @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime      @db.Timestamp(6)
+  organizations  organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roles          roles         @relation(fields: [roleId], references: [id])
+  users          users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([roleId])
+  @@index([status])
+  @@index([userId])
+}
+
+model organizations {
+  id                       String                     @id @db.Uuid
+  name                     String                     @db.VarChar(255)
+  slug                     String                     @unique @db.VarChar(100)
+  gstin                    String?                    @db.VarChar(20)
+  pan                      String?                    @db.VarChar(20)
+  phone                    String                     @db.VarChar(20)
+  email                    String                     @db.VarChar(255)
+  address                  String?
+  city                     String                     @default("Bengaluru") @db.VarChar(100)
+  state                    String                     @default("Karnataka") @db.VarChar(100)
+  pincode                  String?                    @db.VarChar(10)
+  logoUrl                  String?
+  isActive                 Boolean                    @default(true)
+  deletedAt                DateTime?                  @db.Timestamp(6)
+  createdAt                DateTime                   @default(now()) @db.Timestamp(6)
+  updatedAt                DateTime                   @db.Timestamp(6)
+  audit_logs               audit_logs[]
+  beds                     beds[]
+  bookings                 bookings[]
+  complaints               complaints[]
+  deposit_transactions     deposit_transactions[]
+  enquiries                enquiries[]
+  expenses                 expenses[]
+  floors                   floors[]
+  food_expenses            food_expenses[]
+  food_vendors             food_vendors[]
+  inventory_items          inventory_items[]
+  inventory_transactions   inventory_transactions[]
+  invoices                 invoices[]
+  maintenance_requests     maintenance_requests[]
+  managed_documents        managed_documents[]
+  meal_records             meal_records[]
+  move_ins                 move_ins[]
+  move_outs                move_outs[]
+  notices                  notices[]
+  notification_preferences notification_preferences[]
+  notifications            notifications[]
+  organization_members     organization_members[]
+  payments                 payments[]
+  properties               properties[]
+  purchase_records         purchase_records[]
+  rent_plans               rent_plans[]
+  resident_documents       resident_documents[]
+  resident_stays           resident_stays[]
+  residents                residents[]
+  rooms                    rooms[]
+  staff_profiles           staff_profiles[]
+  staff_tasks              staff_tasks[]
+  vendors                  vendors[]
+  visitors                 visitors[]
+  weekly_menus             weekly_menus[]
+
+  @@index([isActive, deletedAt])
+  @@index([slug])
+}
+
+model password_resets {
+  id        String    @id @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique @db.VarChar(255)
+  expiresAt DateTime  @db.Timestamp(6)
+  usedAt    DateTime? @db.Timestamp(6)
+  createdAt DateTime  @default(now()) @db.Timestamp(6)
+  users     users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([userId])
+}
+
+model payment_allocations {
+  id              String   @id @db.Uuid
+  paymentId       String   @db.Uuid
+  invoiceId       String   @db.Uuid
+  allocatedAmount Decimal  @db.Decimal(10, 2)
+  allocatedAt     DateTime @default(now()) @db.Timestamp(6)
+  invoices        invoices @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  payments        payments @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([paymentId])
+}
+
+model payments {
+  id                  String                @id @db.Uuid
+  organizationId      String                @db.Uuid
+  propertyId          String                @db.Uuid
+  residentId          String                @db.Uuid
+  receiptNumber       String                @unique @db.VarChar(50)
+  amount              Decimal               @db.Decimal(10, 2)
+  paymentDate         DateTime              @default(now()) @db.Timestamp(6)
+  paymentMethod       PaymentMethod         @default(UPI)
+  referenceNumber     String?               @db.VarChar(100)
+  status              PaymentStatus         @default(RECORDED)
+  notes               String?
+  recordedBy          String?               @db.Uuid
+  deletedAt           DateTime?             @db.Timestamp(6)
+  createdAt           DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt           DateTime              @db.Timestamp(6)
+  payment_allocations payment_allocations[]
+  organizations       organizations         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties          properties            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents           residents             @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([deletedAt])
+  @@index([organizationId])
+  @@index([paymentDate])
+  @@index([propertyId])
+  @@index([receiptNumber])
+  @@index([residentId])
+}
+
+model permissions {
+  id               String             @id @db.Uuid
+  code             String             @unique @db.VarChar(100)
+  name             String?            @db.VarChar(100)
+  module           String             @db.VarChar(50)
+  description      String?            @db.VarChar(255)
+  createdAt        DateTime           @default(now()) @db.Timestamp(6)
+  role_permissions role_permissions[]
+
+  @@index([module])
+}
+
+model properties {
+  id                     String                   @id @db.Uuid
+  organizationId         String                   @db.Uuid
+  name                   String                   @db.VarChar(255)
+  code                   String                   @db.VarChar(50)
+  propertyType           PropertyType             @default(BOYS_PG)
+  genderType             GenderType               @default(BOYS)
+  status                 PropertyStatus           @default(ACTIVE)
+  addressLine1           String                   @db.VarChar(255)
+  addressLine2           String?                  @db.VarChar(255)
+  area                   String                   @db.VarChar(100)
+  city                   String                   @default("Bengaluru") @db.VarChar(100)
+  state                  String                   @default("Karnataka") @db.VarChar(100)
+  pincode                String                   @db.VarChar(10)
+  googleMapsUrl          String?
+  contactPhone           String                   @db.VarChar(20)
+  contactEmail           String                   @db.VarChar(255)
+  amenities              String?
+  rules                  String?
+  isActive               Boolean                  @default(true)
+  deletedAt              DateTime?                @db.Timestamp(6)
+  createdAt              DateTime                 @default(now()) @db.Timestamp(6)
+  updatedAt              DateTime                 @db.Timestamp(6)
+  beds                   beds[]
+  bookings               bookings[]
+  complaints             complaints[]
+  deposit_transactions   deposit_transactions[]
+  enquiries              enquiries[]
+  expenses               expenses[]
+  floors                 floors[]
+  food_expenses          food_expenses[]
+  food_vendors           food_vendors[]
+  inventory_items        inventory_items[]
+  inventory_transactions inventory_transactions[]
+  invoices               invoices[]
+  maintenance_requests   maintenance_requests[]
+  managed_documents      managed_documents[]
+  meal_records           meal_records[]
+  move_ins               move_ins[]
+  move_outs              move_outs[]
+  notices                notices[]
+  notifications          notifications[]
+  payments               payments[]
+  organizations          organizations            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property_settings      property_settings?
+  purchase_records       purchase_records[]
+  rent_plans             rent_plans[]
+  resident_stays         resident_stays[]
+  residents              residents[]
+  rooms                  rooms[]
+  staff_profiles         staff_profiles[]
+  staff_tasks            staff_tasks[]
+  visitors               visitors[]
+  weekly_menus           weekly_menus[]
+
+  @@unique([organizationId, code])
+  @@index([city, area])
+  @@index([organizationId])
+  @@index([status, deletedAt])
+}
+
+model property_settings {
+  id                     String                 @id @db.Uuid
+  propertyId             String                 @unique @db.Uuid
+  billingCycleDay        Int                    @default(1)
+  gracePeriodDays        Int                    @default(5)
+  lateFeePerDay          Decimal                @default(50.0) @db.Decimal(10, 2)
+  noticePeriodDays       Int                    @default(30)
+  securityDepositMonths  Int                    @default(2)
+  curfewTime             String?                @default("22:30") @db.VarChar(10)
+  electricityBilling     ElectricityBillingType @default(INCLUDED)
+  electricityRatePerUnit Decimal                @default(10.0) @db.Decimal(10, 2)
+  foodMenuAvailable      Boolean                @default(true)
+  foodIncluded           Boolean                @default(true)
+  guestPolicy            String?
+  createdAt              DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt              DateTime               @db.Timestamp(6)
+  properties             properties             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model purchase_record_items {
+  id               String           @id @db.Uuid
+  purchaseRecordId String           @db.Uuid
+  inventoryItemId  String           @db.Uuid
+  quantity         Decimal          @db.Decimal(10, 2)
+  unitPrice        Decimal          @db.Decimal(10, 2)
+  totalPrice       Decimal          @db.Decimal(10, 2)
+  inventory_items  inventory_items  @relation(fields: [inventoryItemId], references: [id])
+  purchase_records purchase_records @relation(fields: [purchaseRecordId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
+  @@index([purchaseRecordId])
+}
+
+model purchase_records {
+  id                    String                  @id @db.Uuid
+  organizationId        String                  @db.Uuid
+  propertyId            String                  @db.Uuid
+  vendorId              String                  @db.Uuid
+  poNumber              String                  @db.VarChar(50)
+  invoiceNumber         String?                 @db.VarChar(100)
+  purchaseDate          DateTime                @db.Date
+  totalAmount           Decimal                 @default(0.0) @db.Decimal(10, 2)
+  taxAmount             Decimal                 @default(0.0) @db.Decimal(10, 2)
+  discountAmount        Decimal                 @default(0.0) @db.Decimal(10, 2)
+  netAmount             Decimal                 @default(0.0) @db.Decimal(10, 2)
+  status                PurchaseRecordStatus    @default(RECEIVED)
+  notes                 String?
+  createdAt             DateTime                @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime                @db.Timestamp(6)
+  purchase_record_items purchase_record_items[]
+  organizations         organizations           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties            properties              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  vendors               vendors                 @relation(fields: [vendorId], references: [id])
+
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([purchaseDate])
+  @@index([status])
+  @@index([vendorId])
+}
+
+model refresh_tokens {
+  id        String   @id @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique @db.VarChar(255)
+  expiresAt DateTime @db.Timestamp(6)
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([userId])
+}
+
+model rent_plans {
+  id                  String           @id @db.Uuid
+  organizationId      String           @db.Uuid
+  propertyId          String?          @db.Uuid
+  name                String           @db.VarChar(150)
+  billingFrequency    BillingFrequency @default(MONTHLY)
+  baseAmount          Decimal          @db.Decimal(10, 2)
+  securityDeposit     Decimal          @db.Decimal(10, 2)
+  noticePeriodDays    Int              @default(30)
+  lockInPeriodMonths  Int              @default(3)
+  electricityIncluded Boolean          @default(true)
+  foodIncluded        Boolean          @default(true)
+  description         String?
+  isActive            Boolean          @default(true)
+  createdAt           DateTime         @default(now()) @db.Timestamp(6)
+  updatedAt           DateTime         @db.Timestamp(6)
+  organizations       organizations    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties          properties?      @relation(fields: [propertyId], references: [id])
+
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+model resident_documents {
+  id                 String             @id @db.Uuid
+  organizationId     String             @db.Uuid
+  residentId         String             @db.Uuid
+  documentType       DocumentType       @default(AADHAAR_CARD)
+  documentNumber     String?            @db.VarChar(100)
+  fileName           String             @db.VarChar(255)
+  fileUrl            String
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedBy         String?            @db.Uuid
+  verifiedAt         DateTime?          @db.Timestamp(6)
+  remarks            String?
+  createdAt          DateTime           @default(now()) @db.Timestamp(6)
+  updatedAt          DateTime           @db.Timestamp(6)
+  organizations      organizations      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  residents          residents          @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([documentType])
+  @@index([organizationId])
+  @@index([residentId])
+}
+
+model resident_stays {
+  id                   String         @id @db.Uuid
+  organizationId       String         @db.Uuid
+  residentId           String         @db.Uuid
+  propertyId           String         @db.Uuid
+  floorId              String?        @db.Uuid
+  roomId               String?        @db.Uuid
+  bedId                String?        @db.Uuid
+  checkInDate          DateTime       @db.Timestamp(6)
+  expectedCheckOutDate DateTime?      @db.Timestamp(6)
+  noticeDate           DateTime?      @db.Timestamp(6)
+  checkOutDate         DateTime?      @db.Timestamp(6)
+  monthlyRent          Decimal        @db.Decimal(10, 2)
+  securityDeposit      Decimal        @db.Decimal(10, 2)
+  status               ResidentStatus @default(ACTIVE)
+  notes                String?
+  createdAt            DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt            DateTime       @db.Timestamp(6)
+  beds                 beds?          @relation(fields: [bedId], references: [id])
+  floors               floors?        @relation(fields: [floorId], references: [id])
+  organizations        organizations  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties           properties     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents            residents      @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  rooms                rooms?         @relation(fields: [roomId], references: [id])
+
+  @@index([bedId])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([residentId])
+}
+
+model residents {
+  id                       String                 @id @db.Uuid
+  organizationId           String                 @db.Uuid
+  userId                   String?                @db.Uuid
+  propertyId               String?                @db.Uuid
+  floorId                  String?                @db.Uuid
+  roomId                   String?                @db.Uuid
+  bedId                    String?                @db.Uuid
+  fullName                 String                 @db.VarChar(150)
+  email                    String                 @db.VarChar(255)
+  phone                    String                 @db.VarChar(20)
+  alternatePhone           String?                @db.VarChar(20)
+  gender                   GenderType             @default(BOYS)
+  dateOfBirth              DateTime?              @db.Date
+  bloodGroup               String?                @db.VarChar(10)
+  avatarUrl                String?
+  permanentAddress         String?
+  currentAddress           String?
+  city                     String?                @db.VarChar(100)
+  state                    String?                @db.VarChar(100)
+  pincode                  String?                @db.VarChar(10)
+  emergencyContactName     String?                @db.VarChar(150)
+  emergencyContactRelation String?                @db.VarChar(50)
+  emergencyContactPhone    String?                @db.VarChar(20)
+  occupationType           OccupationType         @default(EMPLOYED)
+  employerOrCollegeName    String?                @db.VarChar(255)
+  designation              String?                @db.VarChar(100)
+  workAddress              String?
+  idNumber                 String?                @db.VarChar(100)
+  status                   ResidentStatus         @default(ENQUIRY)
+  joiningDate              DateTime               @default(now()) @db.Timestamp(6)
+  expectedMoveOutDate      DateTime?              @db.Timestamp(6)
+  noticeGivenDate          DateTime?              @db.Timestamp(6)
+  actualMoveOutDate        DateTime?              @db.Timestamp(6)
+  monthlyRent              Decimal                @default(0.0) @db.Decimal(10, 2)
+  securityDeposit          Decimal                @default(0.0) @db.Decimal(10, 2)
+  depositPaid              Decimal                @default(0.0) @db.Decimal(10, 2)
+  depositStatus            DepositStatus          @default(PENDING)
+  foodIncluded             Boolean                @default(true)
+  notes                    String?
+  deletedAt                DateTime?              @db.Timestamp(6)
+  createdAt                DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt                DateTime               @db.Timestamp(6)
+  bookings                 bookings[]
+  complaints               complaints[]
+  deposit_transactions     deposit_transactions[]
+  invoices                 invoices[]
+  maintenance_requests     maintenance_requests[]
+  managed_documents        managed_documents[]
+  meal_attendances         meal_attendances[]
+  move_ins                 move_ins[]
+  move_outs                move_outs[]
+  payments                 payments[]
+  resident_documents       resident_documents[]
+  resident_stays           resident_stays[]
+  beds                     beds?                  @relation(fields: [bedId], references: [id])
+  floors                   floors?                @relation(fields: [floorId], references: [id])
+  organizations            organizations          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties               properties?            @relation(fields: [propertyId], references: [id])
+  rooms                    rooms?                 @relation(fields: [roomId], references: [id])
+  users                    users?                 @relation(fields: [userId], references: [id])
+  visitors                 visitors[]
+
+  @@index([bedId])
+  @@index([deletedAt])
+  @@index([email])
+  @@index([organizationId])
+  @@index([phone])
+  @@index([propertyId])
+  @@index([roomId])
+  @@index([status])
+}
+
+model role_permissions {
+  roleId       String      @db.Uuid
+  permissionId String      @db.Uuid
+  createdAt    DateTime    @default(now()) @db.Timestamp(6)
+  permissions  permissions @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  roles        roles       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model roles {
+  id                   String                 @id @db.Uuid
+  name                 RoleType               @unique
+  description          String?                @db.VarChar(255)
+  isSystem             Boolean                @default(true)
+  createdAt            DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt            DateTime               @db.Timestamp(6)
+  organization_members organization_members[]
+  role_permissions     role_permissions[]
+}
+
+model rooms {
+  id                   String                 @id @db.Uuid
+  organizationId       String                 @db.Uuid
+  propertyId           String                 @db.Uuid
+  floorId              String                 @db.Uuid
+  roomNumber           String                 @db.VarChar(50)
+  roomType             RoomType               @default(DOUBLE)
+  capacity             Int                    @default(2)
+  status               RoomStatus             @default(AVAILABLE)
+  baseRent             Decimal                @db.Decimal(10, 2)
+  deposit              Decimal                @default(0.0) @db.Decimal(10, 2)
+  hasAttachedBath      Boolean                @default(true)
+  hasBalcony           Boolean                @default(false)
+  hasAc                Boolean                @default(false)
+  amenities            String?
+  isActive             Boolean                @default(true)
+  deletedAt            DateTime?              @db.Timestamp(6)
+  createdAt            DateTime               @default(now()) @db.Timestamp(6)
+  updatedAt            DateTime               @db.Timestamp(6)
+  beds                 beds[]
+  bookings             bookings[]
+  maintenance_requests maintenance_requests[]
+  resident_stays       resident_stays[]
+  residents            residents[]
+  floors               floors                 @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  organizations        organizations          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties           properties             @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  staff_tasks          staff_tasks[]
+
+  @@unique([floorId, roomNumber])
+  @@index([floorId])
+  @@index([isActive, deletedAt])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([roomType])
+  @@index([status])
+}
+
+model staff_attendances {
+  id             String                @id @db.Uuid
+  staffId        String                @db.Uuid
+  date           DateTime              @db.Date
+  status         StaffAttendanceStatus @default(PRESENT)
+  checkInTime    String?               @db.VarChar(10)
+  checkOutTime   String?               @db.VarChar(10)
+  notes          String?
+  createdAt      DateTime              @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime              @db.Timestamp(6)
+  staff_profiles staff_profiles        @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+  @@index([date])
+  @@index([staffId])
+  @@index([status])
+}
+
+model staff_profiles {
+  id                    String              @id @db.Uuid
+  organizationId        String              @db.Uuid
+  userId                String?             @unique @db.Uuid
+  propertyId            String?             @db.Uuid
+  fullName              String              @db.VarChar(150)
+  role                  String              @db.VarChar(100)
+  phone                 String              @db.VarChar(20)
+  email                 String?             @db.VarChar(255)
+  joiningDate           DateTime            @default(now()) @db.Timestamp(6)
+  salary                Decimal             @default(15000.0) @db.Decimal(10, 2)
+  shift                 StaffShift          @default(MORNING)
+  status                StaffStatus         @default(ACTIVE)
+  emergencyContactName  String?             @db.VarChar(150)
+  emergencyContactPhone String?             @db.VarChar(20)
+  idProofNumber         String?             @db.VarChar(50)
+  createdAt             DateTime            @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime            @db.Timestamp(6)
+  staff_attendances     staff_attendances[]
+  organizations         organizations       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties            properties?         @relation(fields: [propertyId], references: [id])
+  users                 users?              @relation(fields: [userId], references: [id])
+  staff_tasks           staff_tasks[]
+
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([shift])
+  @@index([status])
+}
+
+model staff_task_history {
+  id          String      @id @db.Uuid
+  staffTaskId String      @db.Uuid
+  actorUserId String?     @db.Uuid
+  oldStatus   TaskStatus?
+  newStatus   TaskStatus
+  notes       String?
+  createdAt   DateTime    @default(now()) @db.Timestamp(6)
+  staff_tasks staff_tasks @relation(fields: [staffTaskId], references: [id], onDelete: Cascade)
+
+  @@index([staffTaskId])
+}
+
+model staff_tasks {
+  id                 String               @id @db.Uuid
+  organizationId     String               @db.Uuid
+  propertyId         String               @db.Uuid
+  floorId            String?              @db.Uuid
+  roomId             String?              @db.Uuid
+  location           String               @db.VarChar(150)
+  assignedStaffId    String?              @db.Uuid
+  title              String               @db.VarChar(200)
+  description        String?
+  category           HousekeepingCategory @default(ROOM_CLEANING)
+  priority           MaintenancePriority  @default(MEDIUM)
+  dueDate            DateTime             @db.Date
+  dueTime            String?              @default("12:00") @db.VarChar(10)
+  status             TaskStatus           @default(PENDING)
+  completionTime     DateTime?            @db.Timestamp(6)
+  notes              String?
+  checklistItems     String?
+  createdAt          DateTime             @default(now()) @db.Timestamp(6)
+  updatedAt          DateTime             @db.Timestamp(6)
+  staff_task_history staff_task_history[]
+  staff_profiles     staff_profiles?      @relation(fields: [assignedStaffId], references: [id])
+  floors             floors?              @relation(fields: [floorId], references: [id])
+  organizations      organizations        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties         properties           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  rooms              rooms?               @relation(fields: [roomId], references: [id])
+
+  @@index([assignedStaffId])
+  @@index([category])
+  @@index([dueDate])
+  @@index([floorId])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([roomId])
+  @@index([status])
+}
+
+model users {
+  id                       String                     @id @db.Uuid
+  email                    String                     @unique @db.VarChar(255)
+  passwordHash             String                     @db.VarChar(255)
+  firstName                String                     @db.VarChar(100)
+  lastName                 String                     @db.VarChar(100)
+  phone                    String                     @db.VarChar(20)
+  avatarUrl                String?
+  isActive                 Boolean                    @default(true)
+  lastLoginAt              DateTime?                  @db.Timestamp(6)
+  deletedAt                DateTime?                  @db.Timestamp(6)
+  createdAt                DateTime                   @default(now()) @db.Timestamp(6)
+  updatedAt                DateTime                   @db.Timestamp(6)
+  audit_logs               audit_logs[]
+  complaints               complaints[]
+  inventory_transactions   inventory_transactions[]
+  maintenance_requests     maintenance_requests[]
+  managed_documents        managed_documents[]
+  notices                  notices[]
+  notification_preferences notification_preferences[]
+  notifications            notifications[]
+  organization_members     organization_members[]
+  password_resets          password_resets[]
+  refresh_tokens           refresh_tokens[]
+  residents                residents[]
+  staff_profiles           staff_profiles?
+  visitors                 visitors[]
+
+  @@index([email])
+  @@index([isActive, deletedAt])
+}
+
+model vendors {
+  id                     String                   @id @db.Uuid
+  organizationId         String                   @db.Uuid
+  name                   String                   @db.VarChar(200)
+  contact                String                   @db.VarChar(100)
+  phone                  String                   @db.VarChar(20)
+  email                  String?                  @db.VarChar(255)
+  category               VendorCategory           @default(GENERAL)
+  address                String
+  paymentTerms           VendorPaymentTerms       @default(NET_30)
+  status                 VendorStatus             @default(ACTIVE)
+  gstin                  String?                  @db.VarChar(30)
+  bankDetails            String?
+  notes                  String?
+  createdAt              DateTime                 @default(now()) @db.Timestamp(6)
+  updatedAt              DateTime                 @db.Timestamp(6)
+  inventory_items        inventory_items[]
+  inventory_transactions inventory_transactions[]
+  purchase_records       purchase_records[]
+  organizations          organizations            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([organizationId])
+  @@index([status])
+}
+
+model visitors {
+  id               String         @id @db.Uuid
+  organizationId   String         @db.Uuid
+  propertyId       String         @db.Uuid
+  residentId       String         @db.Uuid
+  visitorName      String         @db.VarChar(150)
+  phone            String         @db.VarChar(20)
+  purpose          VisitorPurpose @default(FRIEND_VISIT)
+  entryTime        DateTime?      @db.Timestamp(6)
+  exitTime         DateTime?      @db.Timestamp(6)
+  idType           VisitorIdType  @default(AADHAAR)
+  idNumber         String?        @db.VarChar(50)
+  vehicleNumber    String?        @db.VarChar(30)
+  expectedDate     DateTime?      @db.Date
+  notes            String?
+  status           VisitorStatus  @default(EXPECTED)
+  approvedByUserId String?        @db.Uuid
+  rejectionReason  String?
+  createdAt        DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime       @db.Timestamp(6)
+  users            users?         @relation(fields: [approvedByUserId], references: [id])
+  organizations    organizations  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties       properties     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  residents        residents      @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([entryTime])
+  @@index([expectedDate])
+  @@index([organizationId])
+  @@index([propertyId])
+  @@index([residentId])
+  @@index([status])
+}
+
+model weekly_menus {
+  id               String             @id @db.Uuid
+  organizationId   String             @db.Uuid
+  propertyId       String             @db.Uuid
+  name             String             @db.VarChar(150)
+  weekStartDate    DateTime           @db.Date
+  isPublished      Boolean            @default(true)
+  notes            String?
+  createdAt        DateTime           @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime           @db.Timestamp(6)
+  daily_menu_items daily_menu_items[]
+  organizations    organizations      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties       properties         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, weekStartDate])
+  @@index([organizationId])
+  @@index([propertyId])
+}
+
+enum BedStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+  BLOCKED
+}
+
+enum BillingFrequency {
+  MONTHLY
+  WEEKLY
+  CUSTOM
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  CONVERTED_TO_MOVE_IN
+}
+
+enum ChargeType {
+  BASE_RENT
+  ELECTRICITY_SUBMETER
+  WATER_CHARGES
+  FOOD_MESS
+  MAINTENANCE
+  LATE_FEE
+  DISCOUNT
+  ADJUSTMENT
+  CUSTOM
+}
+
+enum ComplaintCategory {
+  NOISE
+  HYGIENE_CLEANLINESS
+  FOOD_QUALITY
+  SECURITY_SAFETY
+  ROOMMATE_ISSUE
+  STAFF_BEHAVIOR
+  BILLING_DISPUTE
+  OTHER
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  REVIEWED
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum DepositStatus {
+  PENDING
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+enum DepositTxType {
+  COLLECTED
+  REFUNDED
+  DEDUCTED_DAMAGE
+  DEDUCTED_DUES
+  DEDUCTED_OTHER
+}
+
+enum DocumentAccessLevel {
+  PUBLIC
+  AUTHENTICATED
+  ROLE_RESTRICTED
+  PRIVATE
+}
+
+enum DocumentCategory {
+  RESIDENT_DOCUMENT
+  PROPERTY_DOCUMENT
+  FINANCIAL_DOCUMENT
+}
+
+enum DocumentType {
+  AADHAAR_CARD
+  PAN_CARD
+  PASSPORT
+  DRIVING_LICENSE
+  COLLEGE_ID
+  EMPLOYMENT_ID
+  POLICE_VERIFICATION
+  RENTAL_AGREEMENT
+  OTHER
+}
+
+enum ElectricityBillingType {
+  INCLUDED
+  SUBMETER
+  FIXED_CHARGE
+}
+
+enum EnquirySource {
+  WEBSITE
+  WALK_IN
+  PHONE
+  REFERRAL
+  HOUSING_PORTAL
+  JUSTDIAL
+  GOOGLE_MAPS
+  OTHER
+}
+
+enum EnquiryStatus {
+  NEW
+  SITE_VISIT_SCHEDULED
+  SITE_VISIT_COMPLETED
+  BOOKED
+  LOST
+  DROPPED
+}
+
+enum ExpenseCategory {
+  ELECTRICITY_BILL
+  WATER_SUPPLY
+  FOOD_GROCERY
+  STAFF_SALARY
+  MAINTENANCE_REPAIR
+  CLEANING_SUPPLIES
+  INTERNET_WIFI
+  WASTE_MANAGEMENT
+  TAX_GOVT
+  MARKETING
+  RENT_PAYOUT
+  OTHER
+}
+
+enum FoodVendorCategory {
+  GROCERY_WHOLESALE
+  VEGETABLE_VENDOR
+  MILK_DAIRY
+  LPG_CYLINDER
+  CATERER
+  OTHER
+}
+
+enum GenderType {
+  BOYS
+  GIRLS
+  CO_ED
+}
+
+enum HousekeepingCategory {
+  ROOM_CLEANING
+  BATHROOM_CLEANING
+  COMMON_AREA
+  CORRIDOR
+  KITCHEN
+  LAUNDRY
+  GARBAGE_COLLECTION
+  DEEP_CLEANING
+  GENERAL_TASK
+}
+
+enum InventoryCategory {
+  CLEANING_SUPPLIES
+  LINEN_BEDDING
+  GROCERIES_FOOD
+  MAINTENANCE_SPARES
+  ELECTRICAL
+  PLUMBING
+  TOILETRIES
+  KITCHEN_EQUIPMENT
+  STATIONERY
+  OTHER
+}
+
+enum InventoryStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+enum InventoryTransactionType {
+  PURCHASE
+  STOCK_IN
+  STOCK_OUT
+  TRANSFER
+  ADJUSTMENT
+  DAMAGE
+  LOSS
+}
+
+enum InventoryUnit {
+  PCS
+  KG
+  LTR
+  PACK
+  BOX
+  METERS
+  ROLLS
+  SET
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum MaintenanceCategory {
+  ELECTRICAL
+  PLUMBING
+  AC
+  INTERNET
+  FURNITURE
+  APPLIANCE
+  BATHROOM
+  ROOM
+  COMMON_AREA
+  OTHER
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  EMERGENCY
+}
+
+enum MaintenanceStatus {
+  CREATED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+  CLOSED
+  CANCELLED
+}
+
+enum MealAttendanceStatus {
+  PRESENT
+  ABSENT
+  OPTED_OUT
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  SNACKS
+  DINNER
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum MoveInStatus {
+  COMPLETED
+  PENDING_DOCUMENTS
+  CANCELLED
+}
+
+enum MoveOutStatus {
+  NOTICE_SUBMITTED
+  INSPECTION_PENDING
+  SETTLEMENT_PENDING
+  COMPLETED
+}
+
+enum NoticeAudience {
+  ALL_RESIDENTS
+  STAFF
+  MANAGERS
+  SPECIFIC_PROPERTY
+}
+
+enum NoticePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NoticeStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  EXPIRED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SUPPRESSED
+}
+
+enum NotificationType {
+  RENT_DUE
+  RENT_OVERDUE
+  BOOKING_CONFIRMED
+  MOVE_IN_REMINDER
+  MOVE_OUT_REMINDER
+  MAINTENANCE_CREATED
+  MAINTENANCE_ASSIGNED
+  COMPLAINT_CREATED
+  LOW_STOCK
+  PAYMENT_RECEIVED
+  DEPOSIT_REFUND
+  NOTICE_PUBLISHED
+}
+
+enum OccupationType {
+  STUDENT
+  EMPLOYED
+  SELF_EMPLOYED
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  RECORDED
+  VERIFIED
+  REJECTED
+}
+
+enum PropertyStatus {
+  ACTIVE
+  INACTIVE
+  UNDER_MAINTENANCE
+}
+
+enum PropertyType {
+  BOYS_PG
+  GIRLS_PG
+  CO_LIVING
+  STUDENT_HOSTEL
+  WORKING_PROFESSIONALS
+}
+
+enum PurchaseRecordStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  PARTIALLY_RECEIVED
+  CANCELLED
+}
+
+enum ResidentStatus {
+  ENQUIRY
+  BOOKED
+  RESERVED
+  ACTIVE
+  NOTICE_PERIOD
+  MOVED_OUT
+  CLOSED
+}
+
+enum RoleType {
+  OWNER
+  MANAGER
+  ACCOUNTANT
+  STAFF
+  RESIDENT
+}
+
+enum RoomStatus {
+  AVAILABLE
+  PARTIALLY_OCCUPIED
+  FULLY_OCCUPIED
+  MAINTENANCE
+  BLOCKED
+  CLEANING
+}
+
+enum RoomType {
+  SINGLE
+  DOUBLE
+  TRIPLE
+  FOUR_SHARING
+  OTHER
+}
+
+enum StaffAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  LEAVE
+}
+
+enum StaffShift {
+  MORNING
+  EVENING
+  NIGHT
+  GENERAL
+}
+
+enum StaffStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+  TERMINATED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+enum VendorCategory {
+  CLEANING_SUPPLIES
+  LINEN_BEDDING
+  GROCERY_FOOD
+  MAINTENANCE_HARDWARE
+  ELECTRICAL_PLUMBING
+  APPLIANCES
+  SECURITY_SERVICES
+  GENERAL
+}
+
+enum VendorPaymentTerms {
+  IMMEDIATE
+  NET_15
+  NET_30
+  NET_60
+  ADVANCE_50_50
+  CASH_ON_DELIVERY
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum VisitorIdType {
+  AADHAAR
+  DRIVING_LICENSE
+  PAN
+  VOTER_ID
+  PASSPORT
+  OTHER
+}
+
+enum VisitorPurpose {
+  PARENT_VISIT
+  FRIEND_VISIT
+  DELIVERY
+  MAINTENANCE_CONTRACTOR
+  OFFICIAL
+  OTHER
+}
+
+enum VisitorStatus {
+  EXPECTED
+  APPROVED
+  REJECTED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
